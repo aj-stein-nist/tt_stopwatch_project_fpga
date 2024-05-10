@@ -41,38 +41,14 @@
    // Calculator VIZ.
    m4_include_lib(https:/['']/raw.githubusercontent.com/efabless/chipcraft---mest-course/main/tlv_lib/calculator_shell_lib.tlv)
 
-\TLV calc()
-   
-   
-   |calc
-      @0
-         $reset = *reset;
-      @1
-         $val1[7:0] =
-            >>1$out;
-         $val2[7:0] = {5'b0, $rand2[2:0]};
-
-         $sum[7:0] = $val1 + $val2;
-         $diff[7:0] = $val1 - $val2;
-         $prod[7:0] = $val1 * $val2;
-         $quot[7:0] = $val1 / $val2;
-
-         $out[7:0] =
-            $reset
-               ? 8'd0 :
-            $op[1:0] == 2'd0
-               ? $sum :
-            $op[1:0] == 2'd1
-               ? $diff :
-            $op[1:0] == 2'd2
-               ? $prod :
-            //default
-                $quot;
-         m5+sseg_decoder($segments, $out[3:0])
-      *uo_out = {1'b0, ~$segments};
-   // Note that pipesignals assigned here can be found under /fpga_pins/fpga.
-   
-   
+\TLV
+   $reset = *reset;
+   $counter[31:0] = $reset ? 1 :
+       $counter == 20_000_000 ? 1 :
+       >>1$counter + 1;
+   $display = $counter == 20_000_000 ? $display == 9 ? 0 : >>1$display + 1 : 4'd0; 
+   m5+sseg_decoder($segments, $display[3:0])
+   *uo_out = {1'b0, ~$segments};
 
    m5+cal_viz(@1, m5_if(m5_in_fpga, /fpga, /top))
    
@@ -81,6 +57,9 @@
    m5_if_neq(m5_target, FPGA, ['*uio_out = 8'b0;'])
    m5_if_neq(m5_target, FPGA, ['*uio_oe = 8'b0;'])
 
+   // Assert these to end simulation (before Makerchip cycle limit).
+   *passed = *cyc_cnt > 40;
+   *failed = 1'b0;
 \SV
 
 // ================================================
