@@ -32,6 +32,7 @@
    // If debouncing, a user's module is within a wrapper, so it has a different name.
    var(user_module_name, m5_if(m5_debounce_inputs, my_design, m5_my_design))
    var(debounce_cnt, m5_if_defined_as(MAKERCHIP, 1, 8'h03, 8'hff))
+   var(clock_speed, 10)
 
 \SV
    // Include Tiny Tapeout Lab.
@@ -42,11 +43,15 @@
    
    $reset = *reset;
    $cycle_counter[31:0] = $reset ? 1 :
-       >>1$cycle_counter == 20_000_000 ? 1 :
+       >>1$cycle_counter == m5_clock_speed ? 1 :
        >>1$cycle_counter + 1;
-   $display_counter[3:0] = $cycle_counter == 20_000_000 ? >>1$display_counter == 9 ? 0 :
-      >>1$display_counter + 1 : 
-      4'd0; 
+   $display_counter[3:0] =
+      $reset ? 4'd0 :
+      $cycle_counter == m5_clock_speed
+          ? >>1$display_counter == 9 ? 0 :
+            >>1$display_counter + 1 :
+      //default
+            >>1$display_counter; 
    $segments[6:0] =
       ($display_counter == 0) ? 7'b1000000 :
       ($display_counter == 1) ? 7'b1111001 :
@@ -106,7 +111,7 @@ module top(input logic clk, input logic reset, input logic [31:0] cyc_cnt, outpu
    // Instantiate the Tiny Tapeout module.
    m5_user_module_name tt(.*);
    
-   assign passed = top.cyc_cnt > 80;
+   assign passed = top.cyc_cnt > 600;
    assign failed = 1'b0;
 endmodule
 
