@@ -2,12 +2,12 @@
 \m5
    use(m5-1.0)
    
-
-   // #################################################################
-   // #                                                               #
-   // #  Starting-Point Code for MEST Course Tiny Tapeout Calculator  #
-   // #                                                               #
-   // #################################################################
+   
+   // ########################################################
+   // #                                                      #
+   // #  Empty template for Tiny Tapeout Makerchip Projects  #
+   // #                                                      #
+   // ########################################################
    
    // ========
    // Settings
@@ -17,15 +17,13 @@
    // Build Target Configuration
    //
    var(my_design, tt_um_example)   /// The name of your top-level TT module, to match your info.yml.
-   var(target, FPGA)  /// FPGA or ASIC
+   var(target, ASIC)   /// Note, the FPGA CI flow will set this to FPGA.
    //-------------------------------------------------------
    
    var(in_fpga, 1)   /// 1 to include the demo board. (Note: Logic will be under /fpga_pins/fpga.)
-   var(debounce_inputs, 0)
-                     /// Legal values:
-                     ///   1: Provide synchronization and debouncing on all input signals.
-                     ///   0: Don't provide synchronization and debouncing.
-                     ///   m5_if_defined_as(MAKERCHIP, 1, 0, 1): Debounce unless in Makerchip.
+   var(debounce_inputs, 0)         /// 1: Provide synchronization and debouncing on all input signals.
+                                   /// 0: Don't provide synchronization and debouncing.
+                                   /// m5_if_defined_as(MAKERCHIP, 1, 0, 1): Debounce unless in Makerchip.
    
    // ======================
    // Computed From Settings
@@ -37,37 +35,40 @@
 
 \SV
    // Include Tiny Tapeout Lab.
-   m4_include_lib(https:/['']/raw.githubusercontent.com/os-fpga/Virtual-FPGA-Lab/35e36bd144fddd75495d4cbc01c4fc50ac5bde6f/tlv_lib/tiny_tapeout_lib.tlv)
-   // Calculator VIZ.
-   m4_include_lib(https:/['']/raw.githubusercontent.com/efabless/chipcraft---mest-course/main/tlv_lib/calculator_shell_lib.tlv)
+   m4_include_lib(['https:/']['/raw.githubusercontent.com/os-fpga/Virtual-FPGA-Lab/35e36bd144fddd75495d4cbc01c4fc50ac5bde6f/tlv_lib/tiny_tapeout_lib.tlv'])
 
-\TLV
+
+\TLV stopwatch()
+   
    $reset = *reset;
    $cycle_counter[31:0] = $reset ? 1 :
        $cycle_counter == 20_000_000 ? 1 :
        >>1$cycle_counter + 1;
    $display_counter = $cycle_counter == 20_000_000 ? $display_counter == 9 ? 0 : >>1$display_counter + 1 : 4'd0; 
    $segments[6:0] =
-      ($display_counter[3:0] == 0) ? 7'b1000000 :
-      ($display_counter[3:0] == 1) ? 7'b1111001 :
-      ($display_counter[3:0] == 2) ? 7'b0100100 :
-      ($display_counter[3:0] == 3) ? 7'b0110000 :
-      ($display_counter[3:0] == 4) ? 7'b0011001 :
-      ($display_counter[3:0] == 5) ? 7'b0010010 :
-      ($display_counter[3:0] == 6) ? 7'b0000010 :
-      ($display_counter[3:0] == 7) ? 7'b1111000 :
-      ($display_counter[3:0] == 8) ? 7'b0000000 :
+      ($display_counter == 0) ? 7'b1000000 :
+      ($display_counter == 1) ? 7'b1111001 :
+      ($display_counter == 2) ? 7'b0100100 :
+      ($display_counter == 3) ? 7'b0110000 :
+      ($display_counter == 4) ? 7'b0011001 :
+      ($display_counter == 5) ? 7'b0010010 :
+      ($display_counter == 6) ? 7'b0000010 :
+      ($display_counter == 7) ? 7'b1111000 :
+      ($display_counter == 8) ? 7'b0000000 :
       7'b0010000 ; // '9'
    *uo_out = {1'b0, ~$segments};
-   
-   // Connect Tiny Tapeout outputs. Note that uio_ outputs are not available in the Tiny-Tapeout-3-based FPGA boards.
-   *uo_out = 8'b0;
    m5_if_neq(m5_target, FPGA, ['*uio_out = 8'b0;'])
    m5_if_neq(m5_target, FPGA, ['*uio_oe = 8'b0;'])
 
-   // Assert these to end simulation (before Makerchip cycle limit).
-   *passed = *cyc_cnt > 40;
-   *failed = 1'b0;
+// Set up the Tiny Tapeout lab environment.
+\TLV tt_lab()
+   // Connect Tiny Tapeout I/Os to Virtual FPGA Lab.
+   m5+tt_connections()
+   // Instantiate the Virtual FPGA Lab.
+   m5+board(/top, /fpga, 7, $, , stopwatch)
+   // Label the switch inputs [0..7] (1..8 on the physical switch panel) (top-to-bottom).
+   m5+tt_input_labels_viz(['"UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED", "UNUSED"'])
+
 \SV
 
 // ================================================
@@ -79,13 +80,27 @@ module top(input logic clk, input logic reset, input logic [31:0] cyc_cnt, outpu
    // Tiny tapeout I/O signals.
    logic [7:0] ui_in, uo_out;
    m5_if_neq(m5_target, FPGA, ['logic [7:0] uio_in, uio_out, uio_oe;'])
-   logic [31:0] r;
+   logic [31:0] r;  // a random value
    always @(posedge clk) r <= m5_if_defined_as(MAKERCHIP, 1, ['$urandom()'], ['0']);
    assign ui_in = r[7:0];
    m5_if_neq(m5_target, FPGA, ['assign uio_in = 8'b0;'])
    logic ena = 1'b0;
    logic rst_n = ! reset;
    
+   /*
+   // Or, to provide specific inputs at specific times (as for lab C-TB) ...
+   // BE SURE TO COMMENT THE ASSIGNMENT OF INPUTS ABOVE.
+   // BE SURE TO DRIVE THESE ON THE B-PHASE OF THE CLOCK (ODD STEPS).
+   // Driving on the rising clock edge creates a race with the clock that has unpredictable simulation behavior.
+   initial begin
+      #1  // Drive inputs on the B-phase.
+         ui_in = 8'h0;
+      #10 // Step 5 cycles, past reset.
+         ui_in = 8'hFF;
+      // ...etc.
+   end
+   */
+
    // Instantiate the Tiny Tapeout module.
    m5_user_module_name tt(.*);
    
@@ -118,17 +133,17 @@ module m5_user_module_name (
 );
    wire reset = ! rst_n;
 
-\TLV tt_lab()
-   // Connect Tiny Tapeout I/Os to Virtual FPGA Lab.
-   m5+tt_connections()
-   // Instantiate the Virtual FPGA Lab.
-   m5+board(/top, /fpga, 7, $, , calc)
-   // Label the switch inputs [0..7] (1..8 on the physical switch panel) (top-to-bottom).
-   m5_if(m5_in_fpga, ['m5+tt_input_labels_viz(['"Value[0]", "Value[1]", "Value[2]", "Value[3]", "Op[0]", "Op[1]", "Op[2]", "="'])'])
-
 \TLV
    /* verilator lint_off UNOPTFLAT */
-   m5_if(m5_in_fpga, ['m5+tt_lab()'], ['m5+calc()'])
+   m5_if(m5_in_fpga, ['m5+tt_lab()'], ['m5+my_design()'])
+
+\SV_plus
+   
+   // ==========================================
+   // If you are using Verilog for your design,
+   // your Verilog logic goes here.
+   // Note, output assignments are in my_design.
+   // ==========================================
 
 \SV
 endmodule
