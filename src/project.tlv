@@ -42,9 +42,11 @@
    
    $reset = *reset;
    $cycle_counter[31:0] = $reset ? 1 :
-       $cycle_counter == 20_000_000 ? 1 :
+       >>1$cycle_counter == 20_000_000 ? 1 :
        >>1$cycle_counter + 1;
-   $display_counter = $cycle_counter == 20_000_000 ? $display_counter == 9 ? 0 : >>1$display_counter + 1 : 4'd0; 
+   $display_counter[3:0] = $cycle_counter == 20_000_000 ? >>1$display_counter == 9 ? 0 :
+      >>1$display_counter + 1 : 
+      4'd0; 
    $segments[6:0] =
       ($display_counter == 0) ? 7'b1000000 :
       ($display_counter == 1) ? 7'b1111001 :
