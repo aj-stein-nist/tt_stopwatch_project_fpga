@@ -43,11 +43,21 @@
 
 \TLV
    $reset = *reset;
-   $counter[31:0] = $reset ? 1 :
-       $counter == 20_000_000 ? 1 :
-       >>1$counter + 1;
-   $display = $counter == 20_000_000 ? $display == 9 ? 0 : >>1$display + 1 : 4'd0; 
-   m5+sseg_decoder($segments, $display[3:0])
+   $cycle_counter[31:0] = $reset ? 1 :
+       $cycle_counter == 20_000_000 ? 1 :
+       >>1$cycle_counter + 1;
+   $display_counter = $cycle_counter == 20_000_000 ? $display_counter == 9 ? 0 : >>1$display_counter + 1 : 4'd0; 
+   $segments[6:0] =
+      ($display_counter[3:0] == 0) ? 7'b1000000 :
+      ($display_counter[3:0] == 1) ? 7'b1111001 :
+      ($display_counter[3:0] == 2) ? 7'b0100100 :
+      ($display_counter[3:0] == 3) ? 7'b0110000 :
+      ($display_counter[3:0] == 4) ? 7'b0011001 :
+      ($display_counter[3:0] == 5) ? 7'b0010010 :
+      ($display_counter[3:0] == 6) ? 7'b0000010 :
+      ($display_counter[3:0] == 7) ? 7'b1111000 :
+      ($display_counter[3:0] == 8) ? 7'b0000000 :
+      7'b0010000 ; // '9'
    *uo_out = {1'b0, ~$segments};
 
    m5+cal_viz(@1, m5_if(m5_in_fpga, /fpga, /top))
